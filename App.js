@@ -64,7 +64,7 @@ function hostOf(endpoint) {
   return (endpoint || '').replace(/^https?:\/\//i, '').replace(/\/api\.php$/i, '');
 }
 
-export default function App() {
+function Main() {
   const [saved, setSaved] = useState(null);           // { endpoint, key } or null (only ONE key at a time)
   const [on, setOn] = useState(false);
   const [endpointIn, setEndpointIn] = useState('');
@@ -103,7 +103,9 @@ export default function App() {
       return;
     }
     await askNotifications();
-    setOn(!!LooseOverlay.start());
+    const started = !!LooseOverlay.start();
+    setOn(started);
+    if (!started && LooseOverlay.error()) setMsg({ kind: 'err', text: 'Could not start the circle: ' + LooseOverlay.error() });
   }, []);
 
   const turnOff = useCallback(() => {
@@ -179,7 +181,10 @@ export default function App() {
     return (
       <View style={[s.root, s.center]}>
         <Text style={s.title}>Loose</Text>
-        <Text style={[s.soft, { textAlign: 'center', marginTop: 8 }]}>The floating circle only works on Android.</Text>
+        <Text style={[s.soft, { textAlign: 'center', marginTop: 8 }]}>
+          {Platform.OS === 'android' ? 'The floating circle could not start.' : 'The floating circle only works on Android.'}
+        </Text>
+        {LooseOverlay.error() ? <Text selectable style={[s.small, { textAlign: 'center', marginTop: 12, color: COLORS.red }]}>{LooseOverlay.error()}</Text> : null}
       </View>
     );
   }
@@ -298,3 +303,28 @@ const s = StyleSheet.create({
   saveText: { color: COLORS.ink, fontSize: 16, fontWeight: '700' },
   msg: { minHeight: 18, marginTop: 10, textAlign: 'center', fontSize: 13 },
 });
+
+// Shows any crash on screen instead of silently closing the app.
+class Boundary extends React.Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <ScrollView style={s.root} contentContainerStyle={{ padding: 24, paddingTop: 60 }}>
+          <Text style={s.title}>Loose hit an error</Text>
+          <Text selectable style={{ color: COLORS.red, fontSize: 13 }}>{String(this.state.error && (this.state.error.stack || this.state.error.message || this.state.error))}</Text>
+        </ScrollView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function App() {
+  return (
+    <Boundary>
+      <Main />
+    </Boundary>
+  );
+}
